@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>ESP32 MQTT 控制面板</title>
+
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+
+        body { text-align: center; font-family: Arial; padding-top: 50px; }
+
+        .btn-container { margin: 20px; }
+
+        button { width: 120px; height: 60px; font-size: 18px; margin: 10px; cursor: pointer; }
+
+        #status-box { margin-top: 30px; font-weight: bold; font-size: 20px; }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>ESP32 遠端控制</h1>
+
+    <h3>控制 ESP32 LED</h3>
+
+    
+
+    <div class="btn-container">
+
+        <button onclick="send('ON')">打開 LED</button>
+
+        <button onclick="send('OFF')">關閉 LED</button>
+
+    </div>
+
+
+
+    <h3>ESP32 實體按鈕狀態</h3>
+
+    <div id="status-box">按鈕狀態：<span id="btnState">等待連線...</span></div>
+
+
+
+    <script>
+
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+
+        const topicControl = "moto/unlock/control";
+
+        const topicStatus = "moto/unlock/status";
+
+        const client = mqtt.connect(broker);
+
+
+
+        client.on('connect', () => {
+
+            document.getElementById('btnState').innerText = "已連線";
+
+            client.subscribe(topicStatus);
+
+        });
+
+
+
+        // 接收來自 ESP32 的按鈕狀態
+
+        client.on('message', (topic, message) => {
+
+            if (topic === topicStatus) {
+
+                document.getElementById('btnState').innerText = message.toString();
+
+            }
+
+        });
+
+
+
+        function send(cmd) {
+
+            client.publish(topicControl, cmd);
+
+        }
+
+    </script>
+
+</body>
+
+</html>
