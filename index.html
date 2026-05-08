@@ -15,55 +15,52 @@
             background: white; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         button:active { background: #e0e0e0; transform: scale(0.95); }
-        #status-box { margin-top: 30px; padding: 20px; border-top: 1px solid #ddd; }
-        .highlight { font-weight: bold; font-size: 24px; color: #007bff; }
-        #log { font-size: 12px; color: #888; margin-top: 10px; }
+        #log { font-size: 14px; color: #888; margin-top: 20px; font-weight: bold; }
+        .status-on { color: #28a745; }
+        .status-off { color: #dc3545; }
     </style>
 </head>
 <body>
     <h1>ESP32 MQTT 控制系統</h1>
     
-    <h3>LED 控制 (GPIO 22)</h3>
+    <h3>實體 LED 控制 (GPIO 12)</h3>
+    
     <div class="btn-container">
         <button onclick="sendCmd('ON')">打開 LED</button>
         <button onclick="sendCmd('OFF')">關閉 LED</button>
     </div>
 
-    <div id="status-box">
-        <h3>實體按鈕狀態 (GPIO 25)</h3>
-        <div id="btnState" class="highlight">等待按鈕訊號...</div>
-    </div>
-
     <div id="log">系統狀態：連線中...</div>
 
     <script>
-        // === 必須對應 ESP32 程式碼的設定 ===
+        // === 必須對應你提供的 ESP32 程式碼設定 ===
         const broker = 'wss://broker.emqx.io:8084/mqtt';
-        const topicLedControl = "myhome/esp32/led";      // 對應你的 topicLedControl
-        const topicButtonStatus = "myhome/esp32/button"; // 對應你的 topicButtonStatus
+        const topicLedControl = "moto/unlock/led"; // 必須與 ESP32 的 topicLedControl 一致
 
         const client = mqtt.connect(broker);
 
         client.on('connect', () => {
-            document.getElementById('log').innerText = "系統狀態：✅ 雲端已連線";
-            // 訂閱按鈕狀態主題
-            client.subscribe(topicButtonStatus);
+            document.getElementById('log').innerHTML = "系統狀態：<span class='status-on'>✅ 雲端已連線</span>";
+            console.log("Connected to MQTT broker");
         });
 
-        // 接收來自 ESP32 的訊息
-        client.on('message', (topic, message) => {
-            if (topic === topicButtonStatus) {
-                // 這裡會顯示 "已按下 (PRESSED)" 或 "已放開 (RELEASED)"
-                document.getElementById('btnState').innerText = message.toString();
-            }
+        client.on('error', (err) => {
+            document.getElementById('log').innerHTML = "系統狀態：<span class='status-off'>❌ 連線失敗</span>";
+            console.error(err);
         });
 
         function sendCmd(cmd) {
             if (client.connected) {
                 client.publish(topicLedControl, cmd);
                 console.log("發送指令至 " + topicLedControl + " : " + cmd);
+                document.getElementById('log').innerText = "指令已送出：" + cmd;
+                
+                // 2秒後恢復連線狀態顯示
+                setTimeout(() => {
+                    document.getElementById('log').innerHTML = "系統狀態：<span class='status-on'>✅ 雲端已連線</span>";
+                }, 2000);
             } else {
-                alert("尚未連線至 MQTT 伺服器");
+                alert("尚未連線至 MQTT 伺服器，請檢查網路。");
             }
         }
     </script>
