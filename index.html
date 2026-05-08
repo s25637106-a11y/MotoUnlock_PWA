@@ -1,55 +1,48 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>MotoUnlock</title>
+    <title>ESP32 MQTT 控制面板</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-               background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-               color: white; text-align: center; height: 100vh; margin: 0; 
-               display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .btn { width: 180px; height: 180px; border-radius: 50%; background: #4CAF50; border: 8px solid rgba(255,255,255,0.2);
-               font-size: 60px; color: white; cursor: pointer; transition: 0.3s; box-shadow: 0 15px 35px rgba(0,0,0,0.4); }
-        .btn:active { transform: scale(0.9); background: #388E3C; }
-        h1 { margin-bottom: 10px; font-weight: 300; letter-spacing: 2px; }
-        #status { margin-top: 20px; font-size: 14px; color: #a0c4ff; }
+        body { text-align: center; font-family: Arial; padding-top: 50px; }
+        .btn-container { margin: 20px; }
+        button { width: 120px; height: 60px; font-size: 18px; margin: 10px; cursor: pointer; }
+        #status-box { margin-top: 30px; font-weight: bold; font-size: 20px; }
     </style>
 </head>
 <body>
-    <h1>MOTO UNLOCK</h1>
-    <button class="btn" onclick="handleAuth()">🔓</button>
-    <div id="status">等待驗證...</div>
+    <h1>ESP32 遠端控制</h1>
+    <h3>控制 ESP32 LED</h3>
+    
+    <div class="btn-container">
+        <button onclick="send('ON')">打開 LED</button>
+        <button onclick="send('OFF')">關閉 LED</button>
+    </div>
+
+    <h3>ESP32 實體按鈕狀態</h3>
+    <div id="status-box">按鈕狀態：<span id="btnState">等待連線...</span></div>
 
     <script>
-        // ！！重要：請將此 IP 改成你 ESP32 在手機熱點下的 IP ！！
-        const esp32_url = "http://172.20.10.4/unlock"; 
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+        const topicControl = "moto/unlock/control";
+        const topicStatus = "moto/unlock/status";
+        const client = mqtt.connect(broker);
 
-        async function handleAuth() {
-            // 在 iPhone 上，如果是從 GitHub (HTTPS) 開啟，
-            // confirm 視窗是一個簡單的替代方案，若要真 FaceID 需透過 WebAuthn API
-            if (confirm("確認身份以啟動解鎖？")) {
-                doUnlock();
+        client.on('connect', () => {
+            document.getElementById('btnState').innerText = "已連線";
+            client.subscribe(topicStatus);
+        });
+
+        // 接收來自 ESP32 的按鈕狀態
+        client.on('message', (topic, message) => {
+            if (topic === topicStatus) {
+                document.getElementById('btnState').innerText = message.toString();
             }
-        }
+        });
 
-        function doUnlock() {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = "發送指令中...";
-
-            // 使用 no-cors 模式發送跨網域請求給區域網路的 ESP32
-            fetch(esp32_url, { mode: 'no-cors' })
-            .then(() => {
-                statusDiv.innerText = "✅ 指令已送達車輛";
-                if (navigator.vibrate) navigator.vibrate(200); // 震動回饋
-            })
-            .catch(err => {
-                statusDiv.innerText = "❌ 連線失敗，請檢查 Wi-Fi";
-                alert("錯誤: 無法連線至 ESP32");
-            });
+        function send(cmd) {
+            client.publish(topicControl, cmd);
         }
     </script>
 </body>
