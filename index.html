@@ -4,51 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
-    <title>ESP32 MQTT 控制面板</title>
+    <title>ESP32 遠端控制面板</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { text-align: center; font-family: Arial; padding-top: 50px; background-color: #f4f4f9; }
+        body { text-align: center; font-family: Arial, sans-serif; padding-top: 50px; background-color: #f4f4f9; color: #333; }
         .btn-container { margin: 20px; }
-        button { width: 140px; height: 70px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 10px; border: 1px solid #ccc; background: white; }
-        button:active { background: #eee; }
-        #status-box { margin-top: 30px; font-weight: bold; font-size: 20px; color: #333; }
+        button { 
+            width: 140px; height: 70px; font-size: 18px; margin: 10px; 
+            cursor: pointer; border-radius: 12px; border: 1px solid #ccc; 
+            background: white; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:active { background: #e0e0e0; transform: scale(0.95); }
+        #status-box { margin-top: 30px; padding: 20px; border-top: 1px solid #ddd; }
+        .highlight { font-weight: bold; font-size: 24px; color: #007bff; }
+        #log { font-size: 12px; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>ESP32 遠端控制</h1>
-    <h3>控制 ESP32 LED (內建+實體)</h3>
+    <h1>ESP32 MQTT 控制系統</h1>
     
+    <h3>LED 控制 (GPIO 22)</h3>
     <div class="btn-container">
-        <button onclick="send('ON')">打開 LED</button>
-        <button onclick="send('OFF')">關閉 LED</button>
+        <button onclick="sendCmd('ON')">打開 LED</button>
+        <button onclick="sendCmd('OFF')">關閉 LED</button>
     </div>
 
-    <h3>ESP32 實體按鈕狀態</h3>
-    <div id="status-box">按鈕狀態：<span id="btnState">等待連線...</span></div>
+    <div id="status-box">
+        <h3>實體按鈕狀態 (GPIO 25)</h3>
+        <div id="btnState" class="highlight">等待按鈕訊號...</div>
+    </div>
+
+    <div id="log">系統狀態：連線中...</div>
 
     <script>
+        // === 必須對應 ESP32 程式碼的設定 ===
         const broker = 'wss://broker.emqx.io:8084/mqtt';
-        
-        // *** 重要：這裡必須跟 ESP32 的 topicLedControl 一致 ***
-        const topicControl = "moto/unlock/led"; 
-        const topicStatus = "moto/unlock/status";
-        
+        const topicLedControl = "myhome/esp32/led";      // 對應你的 topicLedControl
+        const topicButtonStatus = "myhome/esp32/button"; // 對應你的 topicButtonStatus
+
         const client = mqtt.connect(broker);
 
         client.on('connect', () => {
-            document.getElementById('btnState').innerText = "✅ 已連線";
-            client.subscribe(topicStatus);
+            document.getElementById('log').innerText = "系統狀態：✅ 雲端已連線";
+            // 訂閱按鈕狀態主題
+            client.subscribe(topicButtonStatus);
         });
 
+        // 接收來自 ESP32 的訊息
         client.on('message', (topic, message) => {
-            if (topic === topicStatus) {
+            if (topic === topicButtonStatus) {
+                // 這裡會顯示 "已按下 (PRESSED)" 或 "已放開 (RELEASED)"
                 document.getElementById('btnState').innerText = message.toString();
             }
         });
 
-        function send(cmd) {
-            client.publish(topicControl, cmd);
-            console.log("發送指令：" + cmd);
+        function sendCmd(cmd) {
+            if (client.connected) {
+                client.publish(topicLedControl, cmd);
+                console.log("發送指令至 " + topicLedControl + " : " + cmd);
+            } else {
+                alert("尚未連線至 MQTT 伺服器");
+            }
         }
     </script>
 </body>
