@@ -1,97 +1,80 @@
 <!DOCTYPE html>
-
-<html>
-
+<html lang="zh-TW">
 <head>
-
     <meta charset="UTF-8">
-
-    <title>ESP32 MQTT 控制面板</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 遠端控制面板</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
     <style>
-
-        body { text-align: center; font-family: Arial; padding-top: 50px; }
-
-        .btn-container { margin: 20px; }
-
-        button { width: 120px; height: 60px; font-size: 18px; margin: 10px; cursor: pointer; }
-
-        #status-box { margin-top: 30px; font-weight: bold; font-size: 20px; }
-
+        body { text-align: center; font-family: "Microsoft JhengHei", Arial, sans-serif; padding-top: 50px; background-color: #f0f2f5; }
+        .container { background: white; width: 300px; margin: 0 auto; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        .btn-group { margin: 20px 0; }
+        button { 
+            width: 120px; height: 60px; font-size: 18px; margin: 10px; 
+            cursor: pointer; border-radius: 10px; border: none; 
+            transition: 0.3s; font-weight: bold;
+        }
+        .btn-on { background-color: #28a745; color: white; }
+        .btn-on:active { background-color: #1e7e34; transform: scale(0.95); }
+        .btn-off { background-color: #dc3545; color: white; }
+        .btn-off:active { background-color: #bd2130; transform: scale(0.95); }
+        #status { margin-top: 20px; font-size: 14px; color: #666; }
+        .online { color: #28a745; font-weight: bold; }
+        .offline { color: #dc3545; font-weight: bold; }
     </style>
-
 </head>
-
 <body>
 
-    <h1>ESP32 遠端控制</h1>
+    <div class="container">
+        <h2>機車 LED 控制</h2>
+        <p>GPIO 2 & GPIO 12</p>
 
-    <h3>控制 ESP32 LED</h3>
+        <div class="btn-group">
+            <button class="btn-on" onclick="sendCmd('ON')">打開 LED</button>
+            <button class="btn-off" onclick="sendCmd('OFF')">關閉 LED</button>
+        </div>
 
-    
-
-    <div class="btn-container">
-
-        <button onclick="send('ON')">打開 LED</button>
-
-        <button onclick="send('OFF')">關閉 LED</button>
-
+        <div id="status">伺服器連線中...</div>
     </div>
 
-
-
-    <h3>ESP32 實體按鈕狀態</h3>
-
-    <div id="status-box">按鈕狀態：<span id="btnState">等待連線...</span></div>
-
-
-
     <script>
-
+        // === MQTT 設定 ===
+        // 網頁端連接加密 WebSocket 埠號為 8084
         const broker = 'wss://broker.emqx.io:8084/mqtt';
+        const topic = "moto/unlock/control"; // 必須與 ESP32 程式碼一致
 
-        const topicControl = "moto/unlock/control";
+        // 產生隨機 Client ID 避免重複衝突
+        const clientId = 'web_client_' + Math.random().toString(16).substr(2, 8);
+        
+        const client = mqtt.connect(broker, {
+            clientId: clientId,
+            clean: true
+        });
 
-        const topicStatus = "moto/unlock/status";
+        const statusEl = document.getElementById('status');
 
-        const client = mqtt.connect(broker);
-
-
-
+        // 連線成功事件
         client.on('connect', () => {
-
-            document.getElementById('btnState').innerText = "已連線";
-
-            client.subscribe(topicStatus);
-
+            statusEl.innerHTML = "狀態: <span class='online'>✅ 已連線至雲端</span>";
+            console.log("Connected to MQTT broker");
         });
 
+        // 連線錯誤事件
+        client.on('error', (err) => {
+            statusEl.innerHTML = "狀態: <span class='offline'>❌ 連線失敗</span>";
+            console.error('Connection error: ', err);
+        });
 
-
-        // 接收來自 ESP32 的按鈕狀態
-
-        client.on('message', (topic, message) => {
-
-            if (topic === topicStatus) {
-
-                document.getElementById('btnState').innerText = message.toString();
-
+        // 發送指令函式
+        function sendCmd(cmd) {
+            if (client.connected) {
+                client.publish(topic, cmd, { qos: 0 });
+                console.log("發送指令: " + cmd);
+            } else {
+                alert("尚未連線到伺服器，請檢查網路！");
             }
-
-        });
-
-
-
-        function send(cmd) {
-
-            client.publish(topicControl, cmd);
-
         }
-
     </script>
-
 </body>
-
 </html>
