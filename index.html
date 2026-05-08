@@ -3,57 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>MotoUnlock 控制中心</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <title>ESP32 MQTT 控制面板</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; text-align: center; background: #1e3c72; color: white; padding-top: 40px; }
-        .unlock-btn { 
-            width: 180px; height: 180px; border-radius: 50%; background: #4CAF50; 
-            border: 8px solid rgba(255,255,255,0.2); font-size: 60px; color: white;
-            cursor: pointer; margin: 20px auto; display: block; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        body { text-align: center; font-family: -apple-system, sans-serif; padding-top: 50px; background-color: #f8f9fa; color: #333; }
+        .btn-container { margin: 20px; }
+        /* 讓按鈕大一點，方便滑鼠與手指點擊 */
+        button { 
+            width: 140px; height: 70px; font-size: 18px; margin: 10px; 
+            cursor: pointer; border-radius: 12px; border: 1px solid #ddd;
+            background: white; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .unlock-btn:active { transform: scale(0.9); background: #388E3C; }
-        .ctrl-btn { width: 100px; height: 50px; margin: 10px; cursor: pointer; border-radius: 8px; border: none; }
-        #status { margin-top: 20px; font-size: 14px; color: #a0c4ff; }
+        button:active { background: #e9ecef; transform: scale(0.95); }
+        #status-box { margin-top: 30px; font-size: 20px; }
+        #log { font-size: 14px; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>MOTO UNLOCK</h1>
+    <h1>ESP32 遠端控制</h1>
+    <h3>控制 ESP32 LED</h3>
     
-    <button class="unlock-btn" onclick="handleUnlock()">🔓</button>
-    <p>點擊按鈕進行身份驗證</p>
+    <div class="btn-container">
+        <button onclick="send('ON')">打開 LED</button>
+        <button onclick="send('OFF')">關閉 LED</button>
+    </div>
 
-    <hr style="width: 80%; opacity: 0.3;">
-
-    <h3>手動測試</h3>
-    <button class="ctrl-btn" onclick="send('ON')">亮燈</button>
-    <button class="ctrl-btn" onclick="send('OFF')">熄燈</button>
-
-    <div id="status">MQTT 連線中...</div>
+    <h3>ESP32 實體按鈕狀態</h3>
+    <div id="status-box">按鈕狀態：<span id="btnState" style="color: #007bff;">等待連線...</span></div>
+    <div id="log">MQTT 狀態：連線中...</div>
 
     <script>
-        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        const topic = "moto/unlock/led";
+        // 【建議】將 yourid 修改為隨機數字或英文，避免與人撞名
+        const myID = "yourid_12345"; 
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+        const topicControl = "moto/" + myID + "/control";
+        const topicStatus = "moto/" + myID + "/status";
+        
+        const client = mqtt.connect(broker);
 
         client.on('connect', () => {
-            document.getElementById('status').innerText = "✅ 系統就緒 (雲端已連線)";
+            document.getElementById('log').innerText = "MQTT 狀態：✅ 已連線至雲端";
+            document.getElementById('btnState').innerText = "就緒";
+            client.subscribe(topicStatus);
         });
 
-        // 身份驗證與解鎖流程
-        function handleUnlock() {
-            // 在手機 PWA 模式下，這會觸發系統層級的確認
-            if (confirm("確認身份以啟動解鎖？")) {
-                send('UNLOCK');
-                document.getElementById('status').innerText = "🚀 正在解鎖車輛...";
-                if (navigator.vibrate) navigator.vibrate(200); // 震動回饋
+        client.on('error', (err) => {
+            document.getElementById('log').innerText = "MQTT 狀態：❌ 連線失敗";
+        });
+
+        // 接收來自 ESP32 的按鈕狀態
+        client.on('message', (topic, message) => {
+            if (topic === topicStatus) {
+                document.getElementById('btnState').innerText = message.toString();
             }
-        }
+        });
 
         function send(cmd) {
-            client.publish(topic, cmd);
+            // 檢查是否已連線
+            if (client.connected) {
+                client.publish(topicControl, cmd);
+                console.log("發送指令：" + cmd);
+                // 暫時改變背景色提示使用者已點擊
+                document.getElementById('log').innerText = "MQTT 狀態：已送出 " + cmd;
+                setTimeout(() => {
+                    document.getElementById('log').innerText = "MQTT 狀態：✅ 已連線至雲端";
+                }, 2000);
+            } else {
+                alert("尚未連線至雲端，請檢查網路");
+            }
         }
     </script>
 </body>
