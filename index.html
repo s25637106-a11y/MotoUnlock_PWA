@@ -2,30 +2,21 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
-    
     <title>ESP32 MQTT 控制面板</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { text-align: center; font-family: -apple-system, sans-serif; padding-top: 50px; background-color: #f8f9fa; color: #333; }
+        body { text-align: center; font-family: Arial; padding-top: 50px; background-color: #f4f4f9; }
         .btn-container { margin: 20px; }
-        /* 讓按鈕大一點，方便滑鼠與手指點擊 */
-        button { 
-            width: 140px; height: 70px; font-size: 18px; margin: 10px; 
-            cursor: pointer; border-radius: 12px; border: 1px solid #ddd;
-            background: white; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        button:active { background: #e9ecef; transform: scale(0.95); }
-        #status-box { margin-top: 30px; font-size: 20px; }
-        #log { font-size: 14px; color: #888; margin-top: 10px; }
+        button { width: 140px; height: 70px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 10px; border: 1px solid #ccc; background: white; }
+        button:active { background: #eee; }
+        #status-box { margin-top: 30px; font-weight: bold; font-size: 20px; color: #333; }
     </style>
 </head>
 <body>
     <h1>ESP32 遠端控制</h1>
-    <h3>控制 ESP32 LED</h3>
+    <h3>控制 ESP32 LED (內建+實體)</h3>
     
     <div class="btn-container">
         <button onclick="send('ON')">打開 LED</button>
@@ -33,29 +24,22 @@
     </div>
 
     <h3>ESP32 實體按鈕狀態</h3>
-    <div id="status-box">按鈕狀態：<span id="btnState" style="color: #007bff;">等待連線...</span></div>
-    <div id="log">MQTT 狀態：連線中...</div>
+    <div id="status-box">按鈕狀態：<span id="btnState">等待連線...</span></div>
 
     <script>
-        // 【建議】將 yourid 修改為隨機數字或英文，避免與人撞名
-        const myID = "yourid_12345"; 
         const broker = 'wss://broker.emqx.io:8084/mqtt';
-        const topicControl = "moto/" + myID + "/control";
-        const topicStatus = "moto/" + myID + "/status";
+        
+        // *** 重要：這裡必須跟 ESP32 的 topicLedControl 一致 ***
+        const topicControl = "moto/unlock/led"; 
+        const topicStatus = "moto/unlock/status";
         
         const client = mqtt.connect(broker);
 
         client.on('connect', () => {
-            document.getElementById('log').innerText = "MQTT 狀態：✅ 已連線至雲端";
-            document.getElementById('btnState').innerText = "就緒";
+            document.getElementById('btnState').innerText = "✅ 已連線";
             client.subscribe(topicStatus);
         });
 
-        client.on('error', (err) => {
-            document.getElementById('log').innerText = "MQTT 狀態：❌ 連線失敗";
-        });
-
-        // 接收來自 ESP32 的按鈕狀態
         client.on('message', (topic, message) => {
             if (topic === topicStatus) {
                 document.getElementById('btnState').innerText = message.toString();
@@ -63,18 +47,8 @@
         });
 
         function send(cmd) {
-            // 檢查是否已連線
-            if (client.connected) {
-                client.publish(topicControl, cmd);
-                console.log("發送指令：" + cmd);
-                // 暫時改變背景色提示使用者已點擊
-                document.getElementById('log').innerText = "MQTT 狀態：已送出 " + cmd;
-                setTimeout(() => {
-                    document.getElementById('log').innerText = "MQTT 狀態：✅ 已連線至雲端";
-                }, 2000);
-            } else {
-                alert("尚未連線至雲端，請檢查網路");
-            }
+            client.publish(topicControl, cmd);
+            console.log("發送指令：" + cmd);
         }
     </script>
 </body>
